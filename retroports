@@ -1,0 +1,142 @@
+#!/bin/sh
+
+######################################################################
+####### AUTOR
+#  Jefferson 'Slackjeff' Carneiro <jeffersoncarneiro@slackjeff.com.br>
+#
+####### PRG
+#  retroports - Syncronize slackbuilds POSIX.
+#
+####### DESC
+#  Retroports try to simulate freebsd ports in Slackware Linux.
+#  Using the base of slackbuilds for this purpose.
+#  The ports are located in '/usr/ports/VERSION' of slackware.
+#  It is not in the interest of retroports to install/compile programs,
+#  just create/update/synchronize ports and also do a search for the
+#  software and dependencies.. So making it easier for you to keep
+#  ports in your system...
+#
+####### LICENSE
+#  GPLv2
+#
+####### SHELLCHECK.
+# shellcheck disable=SC1091
+# shellcheck source=/dev/null.
+#
+####### CHANGELOG
+# [0.1] - [22/06/2020] - Jefferson Rocha
+#   - Start project
+######################################################################
+
+#====================== VARS
+PRG="$(basename "$0")"
+dir_ports='/usr/ports'
+rcolor='\033[31;1m'
+bcolor='\033[34;1m'
+endcolor='\033[m'
+#====================== LIBS
+. '/etc/os-release'
+
+#====================== FUNCTIONS
+USAGE() {
+    printf '%s\n' "$PRG - Syncronize slackbuilds.
+$PRG [OPTIONS] [ARG]
+
+OPTIONS:
+  update,--update
+          Synchronize/update slackbuilds ports
+  search,--search 
+          Search for a specific software/lib in /usr/ports/VERSION directorie.
+
+LICENSE: GPLv2
+AUTHOR : Jefferson Carneiro <jeffersoncarneiro@slackjeff.com.br>"
+}
+
+# CREATE SKELL if NEED.
+SKELL() {
+# Directory exist?
+if [ ! -d "$dir_ports" ]; then
+    printf '%s' "/usr/ports/ don't exist. Do you want to create? [Y/n]"
+    read -r inputUser
+    inputUser=$(printf '%s' "$inputUser" | tr "[:upper:]" "[:lower:]") # lower.
+  if [ -z "$inputUser" ] || [ "$inputUser" = 'y' ]; then
+      mkdir -v "$dir_ports"
+  else
+      printf '%s\n' "Need this directory to continue."
+      exit 1
+  fi
+fi
+}
+
+# SYNC AND UPDATE
+UPDATE() {
+  printf '%s\n' "Wait...Wait... Starting UPDATE in ${dir_ports}/${VERSION}."
+  if ! rsync -avzh "rsync://slackbuilds.org/slackbuilds/${VERSION} ${dir_ports}"; then
+      printf '%s\n' "ErrooooooooOOOOOr."
+      exit 1
+  else
+      printf '%s\n' "Okay. We are ready to start ."
+      printf '%s\n' "For a simple test use: retroports --search vlc"
+      return 0
+  fi
+}
+
+# SEARCH SOFTWARE IN PORTS.
+SEARCH() {
+ pkg="$*"
+ pkg_local=$(find "$dir_ports" -iname "$pkg")
+ if [ -n "$pkg_local" ]; then
+    # Load lib
+    . ${pkg_local}/*.info
+    # Requirements are not null, check if requires installed in the system.
+    if [ -n "$REQUIRES" ] && [ "$REQUIRES" != '%README%' ]; then
+        printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - # Vertical line.
+        printf '%b\n' "${bcolor}PKG NAME${endcolor}  | $pkg"
+        printf '%b\n' "${bcolor}VERSION${endcolor}   | $VERSION"
+        printf '%b\n' "${bcolor}DIRECTORY${endcolor} | $pkg_local"
+        printf '%b\n' "${bcolor}MAINTAINER${endcolor}| $MAINTAINER"
+        printf '%b\n' "${bcolor}CONTACT${endcolor}   | $EMAIL"
+        printf '%b\n' "${bcolor}DEPENDS${endcolor}   | $REQUIRES"
+        printf '%*b\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - # Vertical line.
+        # Loop for find requires installed in system.
+        printf '%s' "$REQUIRES" | tr ' ' '\n' | while read -r line; do
+            check_prg_exist="$(find /var/log/packages/ -name "${line}-*")"
+            if [ -z "$check_prg_exist" ]; then
+              printf '%-15b' "$line" "${rcolor}[NOT INSTALLED]${endcolor}\n"
+            fi
+        done
+    # Requirements is null...
+    else
+        printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - # Vertical line.
+        printf '%b\n' "${bcolor}PKG NAME${endcolor}  | $pkg"
+        printf '%b\n' "${bcolor}VERSION${endcolor}   | $VERSION"
+        printf '%b\n' "${bcolor}DIRECTORY${endcolor} | $pkg_local"
+        printf '%b\n' "${bcolor}MAINTAINER${endcolor}| $MAINTAINER"
+        printf '%b\n' "${bcolor}CONTACT${endcolor}   | $EMAIL"
+        printf '%b\n' "${bcolor}DEPENDS${endcolor}   | ${bcolor}NONE${endcolor}"
+        printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' - # Vertical line.
+    fi
+ else
+        printf '%s\n' "This software does not exist."
+        exit 1
+ fi
+}
+
+#====================== TESTS
+[ "$(id -u)" -ne '0' ] && { echo "Need root ;)."; exit 1 ;}
+
+#======================= MAIN
+if [ "$#" -eq '0' ] ;then
+    USAGE
+elif [ "$1" = '--update' ] || [ "$1" = 'update' ]; then
+    SKELL && UPDATE
+elif [ "$1" = '--search' ] || [ "$1" = 'search' ]; then
+    shift
+    if [ -n "$1" ]; then
+        SKELL; SEARCH "$1"
+    else
+        USAGE
+    fi
+else
+    USAGE
+fi
