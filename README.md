@@ -1,6 +1,9 @@
 # retroports
 Retroports simulate FreeBSD PORTS in Slackware Linux, with slackbuilds.
 
+## Demo
+![gif](https://raw.githubusercontent.com/slackjeff/retroports/master/retroports.gif)
+
 ## INSTALL
 Put retroports in /usr/sbin/ and give perm to execute.
 
